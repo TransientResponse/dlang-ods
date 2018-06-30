@@ -1,0 +1,14 @@
+.dub
+docs.json
+__dummy.html
+docs/
+dlang-ods.so
+dlang-ods.dylib
+dlang-ods.dll
+dlang-ods.a
+dlang-ods.lib
+dlang-ods-test-*
+*.exe
+*.o
+*.obj
+*.lst

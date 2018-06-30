@@ -1,0 +1,14 @@
+{
+	"name": "dlang-ods",
+	"authors": [
+		"Rudy Raab"
+	],
+	"dependencies": {
+		"dxml": "~>0.3.2",
+		"archive": "~>0.6.0"
+	},
+	"description": "D library to parse ODS (OpenDocument Spreadsheet) files",
+	"copyright": "Copyright © 2018, Rudy Raab",
+	"license": "MIT",
+	"targetType": "library"
+}
