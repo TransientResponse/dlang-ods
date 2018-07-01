@@ -97,7 +97,7 @@ public class ODSSheet {
 	private string[] parseNextRow() {
 		if(!range.empty) range.popFront;
 		string[] row;
-		while(!range.empty) {
+		while(!range.empty && !_endOfSheet) {
 			if((range.front.type == EntityType.elementEmpty) && (range.front.name == "table:table-cell"))
 				row ~= "";
 			else if(range.front.type == EntityType.elementStart) {
@@ -109,7 +109,7 @@ public class ODSSheet {
 				}
 			}
 			else if(range.front.type == EntityType.elementEnd) {
-				if(range.front.name == "table:table-row") return row;
+				if(range.front.name == "table:table-row") {range.popFront; return row;}
 				else if(range.front.name == "table:table") _endOfSheet = true;
 			}
 			range.popFront;
