@@ -11,7 +11,7 @@ void main()
 {
 	auto sheet = new ODSSheet();
 
-	sheet.readSheet("test.ods", 1);
+	sheet.readSheet("test.ods", 0);
 
 	while(!sheet.empty) {
 		writeln(sheet.front);

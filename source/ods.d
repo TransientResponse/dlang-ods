@@ -63,7 +63,7 @@ public class ODSSheet {
 
 	Params:
 	filename = The name of the ODS file to read.
-	sheet = The one-based index of the sheet to read.
+	sheet = The zero-based index of the sheet to read.
 	*/
 	public void readSheet(string filename, int sheet) {
 		loadFile(filename);
