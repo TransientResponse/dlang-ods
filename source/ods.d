@@ -3,6 +3,7 @@ module ods;
 import std.stdio, std.utf, std.file;
 import archive.zip;
 import dxml.parser;
+import dxml.util: decodeXML;
 
 private enum configSplitNo = makeConfig(SplitEmpty.no);
 alias rangeT = EntityRange!(configSplitNo, string);
@@ -105,7 +106,7 @@ public class ODSSheet {
 				if(range.front.name == "text:p") {
 					range.popFront;
 					if(range.front.type == EntityType.elementEmpty) {range.popFront;}
-					row ~= range.front.text;
+					row ~= decodeXML(range.front.text);
 				}
 			}
 			else if(range.front.type == EntityType.elementEnd) {
@@ -132,13 +133,13 @@ public class ODSSheet {
 		</table:table-cell>
 		<table:table-cell/>
 		<table:table-cell>
-		<text:p><text:s text:c="2" />Some other text</text:p>
+		<text:p><text:s text:c="2" />Some other &quot;text&quot;</text:p>
 		</table:table-cell>
 	</table:table-row>`;
 
 		auto parser = new ODSSheet();
 		parser.range = parseXML(rowXML);
-		assert(parser.parseNextRow() == ["This", "Is", "A", "Test", "", "Some other text"]);
+		assert(parser.parseNextRow() == ["This", "Is", "A", "Test", "", "Some other \"text\""]);
 	}
 
 
