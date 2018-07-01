@@ -4,8 +4,8 @@ import std.stdio, std.utf, std.file;
 import archive.zip;
 import dxml.parser;
 
-private enum configSplitYes = makeConfig(SplitEmpty.yes);
-alias rangeT = EntityRange!(configSplitYes, string);
+private enum configSplitNo = makeConfig(SplitEmpty.no);
+alias rangeT = EntityRange!(configSplitNo, string);
 
 private string[string] getAttributeDict(rangeT range) {
 	if(range.front.type != EntityType.elementStart) throw new Exception("No attributes on non-start tag");
@@ -91,17 +91,20 @@ public class ODSSheet {
 		auto data = content.data;
 		string xml = cast(string)data;
 		validate(xml);
-		range = parseXML!configSplitYes(xml);
+		range = parseXML(xml);
 	}
 
 	private string[] parseNextRow() {
 		if(!range.empty) range.popFront;
 		string[] row;
 		while(!range.empty) {
-			if(range.front.type == EntityType.elementStart) {
+			if((range.front.type == EntityType.elementEmpty) && (range.front.name == "table:table-cell"))
+				row ~= "";
+			else if(range.front.type == EntityType.elementStart) {
 				//if(range.front.name == "table:table-row") row = new string[];
 				if(range.front.name == "text:p") {
 					range.popFront;
+					if(range.front.type == EntityType.elementEmpty) {range.popFront;}
 					row ~= range.front.text;
 				}
 			}
@@ -127,10 +130,15 @@ public class ODSSheet {
 		<table:table-cell office:value-type="string" calcext:value-type="string">
 			<text:p>Test</text:p>
 		</table:table-cell>
+		<table:table-cell/>
+		<table:table-cell>
+		<text:p><text:s text:c="2" />Some other text</text:p>
+		</table:table-cell>
 	</table:table-row>`;
 
-		auto range = parseXML!configSplitYes(rowXML);
-		assert(parseNextRow(range) == ["This", "Is", "A", "Test"]);
+		auto parser = new ODSSheet();
+		parser.range = parseXML(rowXML);
+		assert(parser.parseNextRow() == ["This", "Is", "A", "Test", "", "Some other text"]);
 	}
 
 
