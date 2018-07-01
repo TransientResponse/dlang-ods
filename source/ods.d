@@ -150,6 +150,70 @@ public class ODSSheet {
 			}
 			range.popFront;
 		}
+		throw new Exception("No sheet in ODS content");
+	}
+	unittest {
+		string fakeXMLBody = `<?xml version="1.0" encoding="UTF-8"?>
+<office:document-content>
+    <office:scripts/>
+    <office:font-face-decls>
+        <style:font-face style:name="Calibri" svg:font-family="Calibri" style:font-family-generic="swiss"/>
+        <style:font-face style:name="Liberation Sans" svg:font-family="&apos;Liberation Sans&apos;" style:font-family-generic="swiss" style:font-pitch="variable"/>
+        <style:font-face style:name="Microsoft YaHei" svg:font-family="&apos;Microsoft YaHei&apos;" style:font-family-generic="system" style:font-pitch="variable"/>
+        <style:font-face style:name="Segoe UI" svg:font-family="&apos;Segoe UI&apos;" style:font-family-generic="system" style:font-pitch="variable"/>
+        <style:font-face style:name="Tahoma" svg:font-family="Tahoma" style:font-family-generic="system" style:font-pitch="variable"/>
+    </office:font-face-decls>
+    <office:automatic-styles>
+        <style:style style:name="co1" style:family="table-column">
+            <style:table-column-properties fo:break-before="auto" style:column-width="48.19pt"/>
+        </style:style>
+        <style:style style:name="ro1" style:family="table-row">
+            <style:table-row-properties style:row-height="15pt" fo:break-before="auto" style:use-optimal-row-height="true"/>
+        </style:style>
+        <style:style style:name="ro2" style:family="table-row">
+            <style:table-row-properties style:row-height="99.95pt" fo:break-before="auto" style:use-optimal-row-height="false"/>
+        </style:style>
+        <style:style style:name="ta1" style:family="table" style:master-page-name="PageStyle_5f_Sheet1">
+            <style:table-properties table:display="true" style:writing-mode="lr-tb"/>
+        </style:style>
+        <style:style style:name="ce1" style:family="table-cell" style:parent-style-name="Default">
+            <style:table-cell-properties style:text-align-source="fix" style:repeat-content="false" fo:wrap-option="no-wrap" fo:border="none" style:direction="ltr" style:rotation-angle="0" style:rotation-align="none" style:shrink-to-fit="false" style:vertical-align="bottom" loext:vertical-justify="auto"/>
+            <style:paragraph-properties fo:text-align="center" css3t:text-justify="auto" fo:margin-left="0pt" style:writing-mode="page"/>
+        </style:style>
+        <style:style style:name="ce2" style:family="table-cell" style:parent-style-name="Default">
+            <style:table-cell-properties style:rotation-align="none"/>
+            <style:text-properties fo:color="#000000" style:text-outline="false" style:text-line-through-style="none" style:text-line-through-type="none" style:font-name="Calibri" fo:font-size="11pt" fo:font-style="normal" fo:text-shadow="none" style:text-underline-style="none" fo:font-weight="bold" style:font-size-asian="11pt" style:font-style-asian="normal" style:font-weight-asian="bold" style:font-name-complex="Calibri" style:font-size-complex="11pt" style:font-style-complex="normal" style:font-weight-complex="bold"/>
+        </style:style>
+        <style:style style:name="ce3" style:family="table-cell" style:parent-style-name="Default">
+            <style:table-cell-properties style:text-align-source="fix" style:repeat-content="false" fo:wrap-option="no-wrap" style:direction="ltr" style:rotation-angle="0" style:rotation-align="none" style:shrink-to-fit="false" style:vertical-align="bottom" loext:vertical-justify="auto"/>
+            <style:paragraph-properties fo:text-align="center" css3t:text-justify="auto" fo:margin-left="0pt" style:writing-mode="page"/>
+        </style:style>
+        <style:style style:name="ce4" style:family="table-cell" style:parent-style-name="Default">
+            <style:table-cell-properties style:text-align-source="fix" style:repeat-content="false" fo:wrap-option="wrap" style:direction="ltr" style:rotation-angle="0" style:rotation-align="none" style:shrink-to-fit="false" style:vertical-align="bottom" loext:vertical-justify="auto"/>
+            <style:paragraph-properties fo:text-align="center" css3t:text-justify="auto" fo:margin-left="0pt" style:writing-mode="page"/>
+        </style:style>
+        <style:style style:name="ce5" style:family="table-cell" style:parent-style-name="Default" style:data-style-name="N125">
+            <style:table-cell-properties style:text-align-source="fix" style:repeat-content="false" fo:wrap-option="no-wrap" style:direction="ltr" style:rotation-angle="0" style:rotation-align="none" style:shrink-to-fit="false" style:vertical-align="bottom" loext:vertical-justify="auto"/>
+            <style:paragraph-properties fo:text-align="end" css3t:text-justify="auto" fo:margin-left="0pt" style:writing-mode="page"/>
+        </style:style>
+        <style:style style:name="ce6" style:family="table-cell" style:parent-style-name="Default" style:data-style-name="N10126">
+            <style:table-cell-properties style:rotation-align="none"/>
+        </style:style>
+    </office:automatic-styles>
+    <office:body>
+        <office:spreadsheet>
+            <table:calculation-settings table:case-sensitive="false" table:automatic-find-labels="false" table:use-regular-expressions="false" table:use-wildcards="true">
+                <table:iteration table:maximum-difference="0.0001"/>
+            </table:calculation-settings>
+            <table:table table:name="Sheet1" table:style-name="ta1">
+            </table:table>
+        </office:spreadsheet>
+    </office:body>
+</office:document-content>`;
+	ODSSheet temp = new ODSSheet();
+	temp.range = parseXML(fakeXMLBody);
+	import std.exception: assertNotThrown;
+	assertNotThrown!Exception(temp.runToSheet(0));
 	}
 
 	private void runToSheet(string sheetName) {
