@@ -169,6 +169,9 @@ public class ODSSheet {
 				if (auto repeat = "table:number-columns-spanned" in attrs){
 					hRepeat = (*repeat).to!uint;
 				}
+				if (auto repeat = "table:number-columns-repeated" in attrs){
+					hRepeat = (*repeat).to!uint > hRepeat ? (*repeat).to!uint : hRepeat;
+				}
 
 				if (auto repeat = "table:number-rows-spanned" in attrs)
 					vRepeat = (*repeat).to!uint;
