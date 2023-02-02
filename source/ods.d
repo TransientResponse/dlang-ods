@@ -1,6 +1,6 @@
 module ods;
 
-import std.stdio, std.utf, std.file;
+import std.stdio, std.utf, std.file, std.algorithm, std.conv : to;
 import archive.zip;
 import dxml.parser;
 import dxml.util: decodeXML;
@@ -9,7 +9,9 @@ private enum configSplitNo = makeConfig(SplitEmpty.no);
 alias rangeT = EntityRange!(configSplitNo, string);
 
 private string[string] getAttributeDict(rangeT range) {
-	if(range.front.type != EntityType.elementStart) throw new Exception("No attributes on non-start tag");
+	if (range.front.type != EntityType.elementStart &&
+			range.front.type != EntityType.elementEmpty)
+		return null;
 	auto attrs = range.front.attributes;
 	string[string] temp;
 	while(!attrs.empty) {
@@ -20,24 +22,47 @@ private string[string] getAttributeDict(rangeT range) {
 	return temp;
 }
 
-/**
-Parses an ODS file and presents the results as a lazy forward range of rows. 
+private uint[2] decodeAddress(ulong addr) pure {
+	return [addr >> (uint.sizeof * 8), addr & uint.max];
+}
 
-Usage: 
-~~~
+private ulong encodeAddress(uint row, uint col) pure {
+	return (cast(ulong)row << (uint.sizeof * 8)) | col;
+}
+
+unittest{
+	foreach (uint i; 0 .. 101){
+		const uint row = (uint.max * i) / 100;
+		foreach (uint j; 0 .. 101){
+			const uint col = (uint.max * j) / 100;
+			assert (encodeAddress(row, col).decodeAddress == [row, col]);
+		}
+	}
+}
+
+/**
+Parses an ODS file and presents the results as a lazy forward range of rows.
+
+Usage:
+```
 auto sheet = new ODSSheet();
 sheet.loadFromFile("file.ods", 0); //The first sheet
 while(!sheet.empty) { writeln(sheet.front); sheet.popFront; }
-~~~
+```
 */
 public class ODSSheet {
 	private rangeT range;
 	private string[] _row;
+	private string[ulong] _pending;
+	private uint _currentRow;
 	private bool _endOfSheet;
+	
+	/** If set to true, merged cells have content repeated in every constituent cell. Otherwise only the first constituent cell has content. **/
+	public bool repeatMergedCells = false;
 
 	/** Retruns `true` if there are no more rows to read, and false otherwise. */
 	public bool empty() {
-		return range.empty && !_endOfSheet;
+		return range.empty || _endOfSheet;
 	}
 
 	/** Returns the current row. */
@@ -47,7 +72,7 @@ public class ODSSheet {
 
 	/** Parses the next avaialable row, if available. */
 	public void popFront() {
-		if(empty) return;
+		if (empty) return;
 		_row = parseNextRow;
 	}
 
@@ -56,10 +81,12 @@ public class ODSSheet {
 		auto temp = new ODSSheet;
 		temp._row = _row;
 		temp.range = range.save();
+		temp._pending = _pending.dup;
+		temp._currentRow = _currentRow;
 		return temp;
 	}
 
-	/** 
+	/**
 	Reads a sheet by index from a given file.
 
 	Params:
@@ -69,6 +96,8 @@ public class ODSSheet {
 	public void readSheet(string filename, int sheet) {
 		loadFile(filename);
 		runToSheet(sheet);
+		_pending = null;
+		_currentRow = 0;
 		_row = parseNextRow();
 	}
 
@@ -88,34 +117,83 @@ public class ODSSheet {
 	private void loadFile(string filename) {
 		auto zip = new ZipArchive(read(filename));
 		auto content = zip.getFile("content.xml");
-		if(content is null) throw new Exception("Invalid ODS file (no content.xml)");
+		if (content is null) throw new Exception("Invalid ODS file (no content.xml)");
 		auto data = content.data;
 		string xml = cast(string)data;
 		validate(xml);
 		range = parseXML(xml);
 	}
 
-	private string[] parseNextRow() {
-		if(!range.empty) range.popFront;
-		string[] row;
-		while(!range.empty && !_endOfSheet) {
-			if((range.front.type == EntityType.elementEmpty) && (range.front.name == "table:table-cell"))
-				row ~= "";
-			else if(range.front.type == EntityType.elementStart) {
-				//if(range.front.name == "table:table-row") row = new string[];
-				if(range.front.name == "text:p") {
+	private string parseCellContent(){
+		string ret;
+		string tag = range.front.name;
+		if (range.front.type == EntityType.elementEmpty){
+			range.popFront;
+			return ret;
+		}
+		range.popFront;
+		while (range.front.type != EntityType.elementEnd && range.front.name != tag){
+			if (range.front.type == EntityType.elementStart && range.front.name == "text:p"){
+				while (!(range.front.type == EntityType.elementEnd && range.front.name == "text:p")){
+					if (range.front.type == EntityType.text)
+						ret ~= decodeXML(range.front.text);
 					range.popFront;
-					if(range.front.type == EntityType.elementEmpty) {range.popFront;}
-					row ~= decodeXML(range.front.text);
 				}
 			}
-			else if(range.front.type == EntityType.elementEnd) {
-				if(range.front.name == "table:table-row") {range.popFront; return row;}
-				else if(range.front.name == "table:table") _endOfSheet = true;
-			}
-			range.popFront;
+			range.popFront();
 		}
-		return null;
+		return ret;
+	}
+
+	private string[] parseNextRow() {
+		if (!range.empty)
+			range.popFront;
+		string[] row = null;
+		if (_endOfSheet)
+			return null;
+		while(!range.empty && !_endOfSheet) {
+			const addr = encodeAddress(_currentRow, cast(uint)row.length);
+			if (auto pending = addr in _pending){
+				row ~= *pending;
+				_pending.remove(addr);
+				continue;
+			}
+			if (range.front.type == EntityType.elementEnd &&
+					(range.front.name == "table:table-row" || range.front.name == "table:table")){
+				_endOfSheet = range.front.name == "table:table";
+				range.popFront;
+				break;
+			}
+			if ((range.front.name == "table:table-cell") && (range.front.type != EntityType.elementEnd)){
+				string[string] attrs = getAttributeDict(range);
+				string content = parseCellContent();
+				uint hRepeat = 1, vRepeat = 1;
+
+				if (auto repeat = "table:number-columns-spanned" in attrs){
+					hRepeat = (*repeat).to!uint;
+				}
+				if (auto repeat = "table:number-columns-repeated" in attrs){
+					hRepeat = (*repeat).to!uint > hRepeat ? (*repeat).to!uint : hRepeat;
+				}
+
+				if (auto repeat = "table:number-rows-spanned" in attrs)
+					vRepeat = (*repeat).to!uint;
+
+				if(repeatMergedCells) {
+					foreach (i; 1 .. vRepeat)
+						_pending[encodeAddress(_currentRow + i, cast(uint)row.length)] = content;
+					foreach (i; 0 .. hRepeat)
+						row ~= content;
+				}
+				else {
+					row ~= content;
+				}
+			}
+			else
+				range.popFront;
+		}
+		_currentRow ++;
+		return row;
 	}
 	unittest {
 		string rowXML = `<table:table-row table:style-name="ro1">
@@ -146,8 +224,8 @@ public class ODSSheet {
 	private void runToSheet(int sheet) {
 		int N = 0;
 		while(!range.empty) {
-			if((range.front.type == EntityType.elementStart) && (range.front.name == "table:table")) {
-				if(++N > sheet) return;
+			if ((range.front.type == EntityType.elementStart) && (range.front.name == "table:table")) {
+				if (++N > sheet) return;
 			}
 			range.popFront;
 		}
@@ -219,10 +297,10 @@ public class ODSSheet {
 
 	private void runToSheet(string sheetName) {
 		while(!range.empty) {
-			if((range.front.type == EntityType.elementStart) && (range.front.name == "table:table")) {
+			if ((range.front.type == EntityType.elementStart) && (range.front.name == "table:table")) {
 				string[string] attrs = getAttributeDict(range);
-				if(auto name = "name" in attrs) {
-					if(*name == sheetName) return;
+				if (auto name = "name" in attrs) {
+					if (*name == sheetName) return;
 				}
 			}
 			range.popFront;
