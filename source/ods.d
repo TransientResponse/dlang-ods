@@ -56,6 +56,9 @@ public class ODSSheet {
 	private string[ulong] _pending;
 	private uint _currentRow;
 	private bool _endOfSheet;
+	
+	/** If set to true, merged cells have content repeated in every constituent cell. Otherwise only the first constituent cell has content. **/
+	public bool repeatMergedCells = false;
 
 	/** Retruns `true` if there are no more rows to read, and false otherwise. */
 	public bool empty() {
@@ -161,7 +164,7 @@ public class ODSSheet {
 				range.popFront;
 				break;
 			}
-			if (range.front.name == "table:table-cell" && range.front.type != EntityType.elementEnd){
+			if ((range.front.name == "table:table-cell") && (range.front.type != EntityType.elementEnd)){
 				string[string] attrs = getAttributeDict(range);
 				string content = parseCellContent();
 				uint hRepeat = 1, vRepeat = 1;
@@ -176,11 +179,17 @@ public class ODSSheet {
 				if (auto repeat = "table:number-rows-spanned" in attrs)
 					vRepeat = (*repeat).to!uint;
 
-				foreach (i; 1 .. vRepeat)
-					_pending[encodeAddress(_currentRow + i, cast(uint)row.length)] = content;
-				foreach (i; 0 .. hRepeat)
+				if(repeatMergedCells) {
+					foreach (i; 1 .. vRepeat)
+						_pending[encodeAddress(_currentRow + i, cast(uint)row.length)] = content;
+					foreach (i; 0 .. hRepeat)
+						row ~= content;
+				}
+				else {
 					row ~= content;
-			}else
+				}
+			}
+			else
 				range.popFront;
 		}
 		_currentRow ++;
