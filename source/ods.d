@@ -51,12 +51,18 @@ while(!sheet.empty) { writeln(sheet.front); sheet.popFront; }
 ```
 */
 public class ODSSheet {
+	/// Stores pending reads (for merged cells)
+	struct Pending{
+		size_t count;
+		string content;
+	}
+
 	private rangeT range;
 	private string[] _row;
-	private string[ulong] _pending;
+	private Pending[ulong] _pending;
 	private uint _currentRow;
 	private bool _endOfSheet;
-	
+
 	/** If set to true, merged cells have content repeated in every constituent cell. Otherwise only the first constituent cell has content. **/
 	public bool repeatMergedCells = false;
 
@@ -154,7 +160,8 @@ public class ODSSheet {
 		while(!range.empty && !_endOfSheet) {
 			const addr = encodeAddress(_currentRow, cast(uint)row.length);
 			if (auto pending = addr in _pending){
-				row ~= *pending;
+				foreach (i; 0 .. pending.count)
+					row ~= pending.content;
 				_pending.remove(addr);
 				continue;
 			}
@@ -181,7 +188,8 @@ public class ODSSheet {
 
 				if(repeatMergedCells) {
 					foreach (i; 1 .. vRepeat)
-						_pending[encodeAddress(_currentRow + i, cast(uint)row.length)] = content;
+						_pending[encodeAddress(_currentRow + i, cast(uint)row.length)] = Pending(
+								hRepeat, content);
 					foreach (i; 0 .. hRepeat)
 						row ~= content;
 				}
